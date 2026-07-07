@@ -181,11 +181,12 @@ export class WaveSolver {
     const dx2 = this.dx * this.dx;
     const { hPrev, hCur, hNext, cSquared, depth } = this;
 
+    const damping = this.damping;
+    const spongeWidth = this.spongeWidth;
+    const spongeStrength = this.spongeStrength;
     for (let j = 0; j < n; j++) {
-      const jUp = j > 0 ? j - 1 : j;
-      const jDown = j < n - 1 ? j + 1 : j;
       for (let i = 0; i < n; i++) {
-        const idx = this.idx(i, j);
+        const idx = j * n + i;
 
         if (depth[idx] <= 0) {
           // Land: stays flat. (No flooding physics in this MVP.)
@@ -193,17 +194,15 @@ export class WaveSolver {
           continue;
         }
 
-        const iLeft = i > 0 ? i - 1 : i;
-        const iRight = i < n - 1 ? i + 1 : i;
+        const idxL = i > 0 ? idx - 1 : idx;
+        const idxR = i < n - 1 ? idx + 1 : idx;
+        const idxU = j > 0 ? idx - n : idx;
+        const idxD = j < n - 1 ? idx + n : idx;
 
-        // 5-point Laplacian stencil. At the coastline, out-of-bounds/land
-        // neighbors are replaced by clamping to the cell itself, which
-        // approximates a reflective (Neumann) boundary — this is exactly
-        // what makes waves bounce naturally off the coast.
-        const hL = hCur[this.idx(iLeft, j)];
-        const hR = hCur[this.idx(iRight, j)];
-        const hU = hCur[this.idx(i, jUp)];
-        const hD = hCur[this.idx(i, jDown)];
+        const hL = hCur[idxL];
+        const hR = hCur[idxR];
+        const hU = hCur[idxU];
+        const hD = hCur[idxD];
         const hC = hCur[idx];
 
         const laplacian = (hL + hR + hU + hD - 4 * hC) / dx2;
@@ -216,24 +215,17 @@ export class WaveSolver {
 
         // Damping (bottom friction proxy): bleed off velocity each step
         // so wave energy decays gradually instead of oscillating forever.
-        next -= this.damping * velocityTerm;
+        next -= damping * velocityTerm;
 
         // Sponge layer: absorb outgoing waves at the FAR (j=0),
         // LEFT (i=0), and RIGHT (i=n-1) edges to prevent open-boundary
         // reflections from bouncing back into the domain.
         let dampT = 0;
-        if (j < this.spongeWidth) {
-          dampT = Math.max(dampT, 1 - j / this.spongeWidth);
-        }
-        if (i < this.spongeWidth) {
-          dampT = Math.max(dampT, 1 - i / this.spongeWidth);
-        }
-        if (n - 1 - i < this.spongeWidth) {
-          dampT = Math.max(dampT, 1 - (n - 1 - i) / this.spongeWidth);
-        }
-        if (dampT > 0) {
-          next *= 1 - this.spongeStrength * dampT;
-        }
+        if (j < spongeWidth) dampT = Math.max(dampT, 1 - j / spongeWidth);
+        if (i < spongeWidth) dampT = Math.max(dampT, 1 - i / spongeWidth);
+        if (n - 1 - i < spongeWidth) dampT = Math.max(dampT, 1 - (n - 1 - i) / spongeWidth);
+        
+        if (dampT > 0) next *= 1 - spongeStrength * dampT;
 
         hNext[idx] = next;
       }

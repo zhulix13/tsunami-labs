@@ -268,21 +268,18 @@ export function createOceanMesh(
    * outer padding cells stay flat at y=0 (calm deep ocean).
    */
   function update(heightField, exaggeration, elapsedTime) {
-    for (let vj = 0; vj < totalSize; vj++) {
-      for (let vi = 0; vi < totalSize; vi++) {
-        const vIdx = vj * totalSize + vi;
-        const d    = staticDepthAttr[vIdx];
-
-        if (d <= 0) {
-          // Land vertex: set elevation from static depth
-          posAttr.setY(vIdx, -d);
-          heightAttr[vIdx] = 0;
-        } else {
-          // Inner physics vertex: apply wave displacement
-          const h = heightField[vIdx];
-          posAttr.setY(vIdx, h * exaggeration);
-          heightAttr[vIdx] = h;
-        }
+    const posArray = posAttr.array;
+    const hArray = heightBufAttr.array;
+    
+    for (let i = 0; i < n; i++) {
+      const d = staticDepthAttr[i];
+      if (d <= 0) {
+        posArray[i * 3 + 1] = -d;
+        hArray[i] = 0;
+      } else {
+        const h = heightField[i];
+        posArray[i * 3 + 1] = h * exaggeration;
+        hArray[i] = h;
       }
     }
 
