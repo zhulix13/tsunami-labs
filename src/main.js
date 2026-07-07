@@ -20,8 +20,8 @@ import { createControls } from "./ui/controls.js";
 import { setupSky } from "./scene/sky.js";
 
 // --- Config -------------------------------------------------------------
-const GRID_SIZE = 230;
-const DOMAIN_SIZE = 306667; // meters (~306km, extended to cover visual padding)
+const GRID_SIZE = 150;
+const DOMAIN_SIZE = 200000; // meters (~200km)
 
 // Step size for the wave physics. We use solver.maxDt (the CFL-safe
 // maximum) so the propagation coupling factor c²·dt²/dx² ≈ 0.4, which
