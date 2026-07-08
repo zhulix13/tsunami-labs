@@ -5,37 +5,176 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TsunamiLab</title>
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: #000;
-      }
-      #app {
-        display: block;
-        width: 100vw;
-        height: 100vh;
-      }
-      #status {
-        position: fixed;
-        top: 16px;
-        left: 16px;
-        color: #fff;
-        font-family: system-ui, sans-serif;
-        font-size: 14px;
-        background: rgba(0, 0, 0, 0.5);
-        padding: 8px 12px;
-        border-radius: 6px;
-        pointer-events: none;
-        max-width: 300px;
-      }
-    </style>
+    <!-- Use Inter font for a modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
+    <!-- 3D Canvas Container -->
     <canvas id="app"></canvas>
-    <div id="status"></div>
+    
+    <!-- UI Overlay container -->
+    <div id="ui-layer">
+      
+      <!-- Top Bar -->
+      <div id="top-bar" class="panel">
+        <div class="logo">
+          <span class="tsunami">TSUNAMI</span> <span class="lab">LAB</span>
+          <div class="subtitle">Tsunami Simulation & Coastal Defense Tester</div>
+        </div>
+        
+        <div class="playback-controls">
+          <button id="btn-play">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start
+          </button>
+          <button id="btn-pause" class="active">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Pause
+          </button>
+          <button id="btn-reset">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg> Reset
+          </button>
+        </div>
+
+        <div class="slider-group">
+          <label>Speed: <span id="val-speed">8x</span></label>
+          <div class="slider-with-labels">
+            <span class="label-min">1x</span>
+            <input type="range" id="sim-speed" min="1" max="20" step="1" value="8">
+            <span class="label-max">20x</span>
+          </div>
+        </div>
+
+        <div class="slider-group">
+          <label>Wave Exaggeration: <span id="val-exaggeration">600x</span></label>
+          <div class="slider-with-labels">
+            <span class="label-min">100x</span>
+            <input type="range" id="wave-exag" min="100" max="2000" step="50" value="600">
+            <span class="label-max">2000x</span>
+          </div>
+        </div>
+
+        <button id="btn-hide-ui">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg> Hide UI
+        </button>
+      </div>
+
+      <!-- Left Sidebar -->
+      <div id="left-sidebar">
+        <!-- Panel 1: Earthquake Settings -->
+        <div class="panel section">
+          <div class="section-header">
+            <span>1. EARTHQUAKE SETTINGS</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+          </div>
+          
+          <div class="control-row">
+            <label>Trigger Mode</label>
+            <div class="button-group">
+              <button class="active">Click Ocean</button>
+              <button id="btn-random-quake">Random Quake</button>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <div class="slider-header">
+              <label>Magnitude (Mw)</label>
+              <span id="val-mag">8.0</span>
+            </div>
+            <input type="range" id="mag-slider" min="6.0" max="9.5" step="0.1" value="8.0">
+            <div class="slider-labels"><span class="label-min">6.0</span><span class="label-max">9.5</span></div>
+          </div>
+
+          <div class="control-row">
+            <div class="slider-header">
+              <label>Hypocenter Depth (km)</label>
+              <span id="val-depth">20</span>
+            </div>
+            <input type="range" id="depth-slider" min="5" max="100" step="1" value="20">
+            <div class="slider-labels"><span class="label-min">5</span><span class="label-max">100</span></div>
+          </div>
+
+          <div class="control-row">
+            <div class="slider-header">
+              <label>Fault Direction (°)</label>
+              <span id="val-dir">90</span>
+            </div>
+            <input type="range" id="dir-slider" min="0" max="180" step="1" value="90">
+            <div class="slider-labels"><span class="label-min">0</span><span class="label-max">180</span></div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Defense Builder -->
+        <div class="panel section disabled" style="position:relative">
+          <div class="section-header">
+            <span>2. DEFENSE BUILDER</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+          </div>
+          <div style="height: 200px"></div>
+          <div class="coming-soon-overlay">Coming Soon (Phase 2)</div>
+        </div>
+      </div>
+
+      <!-- Right Panel: Protection Report & Legend -->
+      <div id="right-sidebar">
+        <!-- Wave Height Legend -->
+        <div class="panel legend-panel">
+          <div class="legend-header">WAVE HEIGHT (m)</div>
+          <div class="legend-gradient-container">
+            <div class="legend-gradient"></div>
+            <div class="legend-labels-y">
+              <span>10.0+</span>
+              <span>7.5</span>
+              <span>5.0</span>
+              <span>2.5</span>
+              <span>0.0</span>
+              <span>-2.5</span>
+              <span>-5.0</span>
+              <span>-7.5</span>
+              <span>-10.0+</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel section disabled" style="margin-top: 16px; position:relative;">
+           <div class="section-header">
+            <span>PROTECTION REPORT</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+          </div>
+          <div style="height: 300px"></div>
+          <div class="coming-soon-overlay">Coming Soon</div>
+        </div>
+      </div>
+
+      <!-- Center Floating Earthquake Callout (Hidden by default) -->
+      <div id="eq-callout" class="hidden">
+        <div class="callout-panel">
+          <div class="callout-header">EARTHQUAKE</div>
+          <div class="callout-row"><span>Mw</span> <span id="callout-mw">8.0</span></div>
+          <div class="callout-row"><span>Depth</span> <span id="callout-depth">20 km</span></div>
+          <div class="callout-row"><span>Direction</span> <span id="callout-dir">90°</span></div>
+        </div>
+        <div class="callout-line"></div>
+        <div class="callout-target">
+           <div class="pulse-ring"></div>
+           <div class="pulse-ring delay-1"></div>
+           <div class="pulse-ring delay-2"></div>
+        </div>
+      </div>
+      
+      <!-- Bottom Left Instructions -->
+      <div id="bottom-bar">
+         <div class="panel instructions">
+            <div class="header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#3b82f6"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> INSTRUCTIONS
+            </div>
+            <p>Click on the deep ocean to trigger an earthquake.</p>
+            <p>Adjust parameters in the left panel to change wave characteristics.</p>
+         </div>
+      </div>
+
+      <div id="status"></div>
+    </div>
+    
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

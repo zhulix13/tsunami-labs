@@ -39,6 +39,8 @@ const state = {
   isPlaying: true,
   exaggeration: 600,
   speed: 8,
+  hypocenterDepth: 20,
+  faultDirection: 90,
 };
 
 // --- Physics + bathymetry -------------------------------------------------
@@ -206,6 +208,29 @@ function worldToGrid(point) {
   return { i, j };
 }
 
+function gridToWorld(i, j) {
+  const x = (i / (GRID_SIZE - 1)) * DOMAIN_SIZE - DOMAIN_SIZE / 2;
+  const z = (j / (GRID_SIZE - 1)) * DOMAIN_SIZE - DOMAIN_SIZE / 2;
+  return new THREE.Vector3(x, 0, z);
+}
+
+function showCallout(i, j, mag, depth, dir) {
+  const callout = document.getElementById("eq-callout");
+  if (!callout) return;
+  document.getElementById("callout-mw").textContent = mag.toFixed(1);
+  document.getElementById("callout-depth").textContent = `${depth} km`;
+  document.getElementById("callout-dir").textContent = `${dir}°`;
+  
+  const worldPos = gridToWorld(i, j);
+  callout.__worldPos = worldPos;
+  callout.classList.remove("hidden");
+  
+  clearTimeout(showCallout._timer);
+  showCallout._timer = setTimeout(() => {
+    callout.classList.add("hidden");
+  }, 4000);
+}
+
 function triggerQuakeAt(i, j, magnitude) {
   if (!isValidEpicenter(depthFn, i, j)) {
     if (statusEl) {
@@ -219,7 +244,8 @@ function triggerQuakeAt(i, j, magnitude) {
     }
     return;
   }
-  solver.triggerEarthquake(i, j, magnitude);
+  solver.triggerEarthquake(i, j, magnitude, state.hypocenterDepth, state.faultDirection);
+  showCallout(i, j, magnitude, state.hypocenterDepth, state.faultDirection);
 }
 
 function onPointerDown(event) {
@@ -245,14 +271,17 @@ function randomQuake() {
     const i = Math.floor(Math.random() * GRID_SIZE);
     const j = Math.floor(Math.random() * (GRID_SIZE * 0.6));
     if (isValidEpicenter(depthFn, i, j)) {
-      state.magnitude = 6.0 + Math.random() * 3.5;
+      state.magnitude = parseFloat((6.0 + Math.random() * 3.5).toFixed(1));
+      state.hypocenterDepth = Math.floor(10 + Math.random() * 40);
+      state.faultDirection = Math.floor(Math.random() * 180);
+      if (uiControls && uiControls.syncUI) uiControls.syncUI();
       triggerQuakeAt(i, j, state.magnitude);
       return;
     }
   }
 }
 
-createControls(state, { onReset: resetSimulation, onRandomQuake: randomQuake });
+const uiControls = createControls(state, { onReset: resetSimulation, onRandomQuake: randomQuake });
 
 // --- Render / physics loop --------------------------------------------------
 // FIX 1: Use a small fixed substep (SIM_DT = 0.05 s) run `state.speed`
@@ -293,6 +322,23 @@ function animate() {
   }
 
   orbit.update();
+
+  // Position Earthquake Callout 
+  const callout = document.getElementById("eq-callout");
+  if (callout && !callout.classList.contains("hidden") && callout.__worldPos) {
+    const pos = callout.__worldPos.clone();
+    pos.project(camera);
+    if (pos.z < 1) { // Only show if in front of camera
+      const x = (pos.x * .5 + .5) * window.innerWidth;
+      const y = (pos.y * -.5 + .5) * window.innerHeight;
+      callout.style.left = `${x}px`;
+      callout.style.top = `${y}px`;
+      callout.style.display = "flex";
+    } else {
+      callout.style.display = "none";
+    }
+  }
+
   renderer.render(scene, camera);
 }
 animate();

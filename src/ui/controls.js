@@ -1,71 +1,93 @@
 /**
  * controls.js
  * -----------------------------------------------------------------------
- * lil-gui control panel. This file only ever READS/WRITES the shared
- * `state` object and calls callback functions passed in from main.js —
- * it never touches the solver, scene, or grid arrays directly. That
- * separation means the physics and rendering modules don't need to know
- * the GUI exists at all.
- *
- * NOTE ON LEVA: the PRD mentions Leva, but Leva is a React-only library
- * (it's built as a React component/hook). Since this project is plain
- * JS + Vite (no React), we use lil-gui instead — it's the actively
- * maintained successor to dat.GUI, has the same panel-with-folders feel,
- * and needs zero framework.
+ * Custom UI control panel. Binds the HTML DOM elements to the shared state.
  */
 
-import GUI from "lil-gui";
-
-/**
- * @param {object} state   shared mutable state, read every frame by main.js:
- *                          { magnitude, isPlaying, exaggeration, speed }
- * @param {object} callbacks
- * @param {() => void} callbacks.onReset        fired when Reset is clicked
- * @param {() => void} callbacks.onRandomQuake   fired when "Random Quake" is clicked
- * @returns {GUI} the lil-gui instance (in case main.js wants to destroy/rebuild it)
- */
 export function createControls(state, { onReset, onRandomQuake } = {}) {
-  const gui = new GUI({ title: "TsunamiLab Controls" });
+  // Playback
+  const btnPlay = document.getElementById("btn-play");
+  const btnPause = document.getElementById("btn-pause");
+  const btnReset = document.getElementById("btn-reset");
+  const speedSlider = document.getElementById("sim-speed");
+  const speedVal = document.getElementById("val-speed");
 
-  // --- Earthquake -----------------------------------------------------
-  const quakeFolder = gui.addFolder("Earthquake");
-  quakeFolder
-    .add(state, "magnitude", 6.0, 9.5, 0.1)
-    .name("Magnitude (Mw)")
-    .listen(); // .listen() keeps the slider in sync if we ever update
-  // magnitude from code (e.g. a "random quake" button randomizing it).
+  const updatePlayPauseUI = () => {
+    if (state.isPlaying) {
+      btnPlay.classList.add("active");
+      btnPause.classList.remove("active");
+    } else {
+      btnPlay.classList.remove("active");
+      btnPause.classList.add("active");
+    }
+  };
 
-  if (onRandomQuake) {
-    quakeFolder
-      .add({ trigger: onRandomQuake }, "trigger")
-      .name("Random Quake ⚡");
+  btnPlay.addEventListener("click", () => { state.isPlaying = true; updatePlayPauseUI(); });
+  btnPause.addEventListener("click", () => { state.isPlaying = false; updatePlayPauseUI(); });
+  if (onReset) btnReset.addEventListener("click", onReset);
+
+  speedSlider.addEventListener("input", (e) => {
+    state.speed = parseFloat(e.target.value);
+    speedVal.textContent = `${state.speed}x`;
+  });
+
+  // Visualization
+  const exagSlider = document.getElementById("wave-exag");
+  const exagVal = document.getElementById("val-exaggeration");
+  exagSlider.addEventListener("input", (e) => {
+    state.exaggeration = parseFloat(e.target.value);
+    exagVal.textContent = `${state.exaggeration}x`;
+  });
+
+  const btnHide = document.getElementById("btn-hide-ui");
+  let uiHidden = false;
+  btnHide.addEventListener("click", () => {
+    uiHidden = !uiHidden;
+    document.getElementById("left-sidebar").style.display = uiHidden ? "none" : "flex";
+    document.getElementById("right-sidebar").style.display = uiHidden ? "none" : "flex";
+    document.getElementById("bottom-bar").style.display = uiHidden ? "none" : "flex";
+  });
+
+  // Earthquake
+  const btnRandom = document.getElementById("btn-random-quake");
+  if (onRandomQuake && btnRandom) {
+    btnRandom.addEventListener("click", onRandomQuake);
   }
 
-  quakeFolder.open();
+  const magSlider = document.getElementById("mag-slider");
+  const magVal = document.getElementById("val-mag");
+  magSlider.addEventListener("input", (e) => {
+    state.magnitude = parseFloat(e.target.value);
+    magVal.textContent = state.magnitude.toFixed(1);
+  });
 
-  // --- Playback ---------------------------------------------------------
-  const playbackFolder = gui.addFolder("Playback");
+  const depthSlider = document.getElementById("depth-slider");
+  const depthVal = document.getElementById("val-depth");
+  depthSlider.addEventListener("input", (e) => {
+    state.hypocenterDepth = parseFloat(e.target.value);
+    depthVal.textContent = state.hypocenterDepth;
+  });
 
-  playbackFolder.add(state, "isPlaying").name("Playing").listen();
+  const dirSlider = document.getElementById("dir-slider");
+  const dirVal = document.getElementById("val-dir");
+  dirSlider.addEventListener("input", (e) => {
+    state.faultDirection = parseFloat(e.target.value);
+    dirVal.textContent = state.faultDirection;
+  });
 
-  playbackFolder.add(state, "speed", 1, 20, 1).name("Sim Speed (x)");
+  // Expose a method to update UI from code (e.g. random quake changes magnitude)
+  return {
+    syncUI: () => {
+      magSlider.value = state.magnitude;
+      magVal.textContent = state.magnitude.toFixed(1);
+      
+      depthSlider.value = state.hypocenterDepth;
+      depthVal.textContent = state.hypocenterDepth;
 
-  if (onReset) {
-    playbackFolder.add({ reset: onReset }, "reset").name("Reset ↺");
-  }
-
-  playbackFolder.open();
-
-  // --- Visualization ----------------------------------------------------
-  const visFolder = gui.addFolder("Visualization");
-  visFolder.add(state, "exaggeration", 100, 2000, 50).name("Wave Exaggeration");
-  // Real tsunami wave heights are meters, spread across a ~200km domain —
-  // without exaggerating the vertical scale for rendering, waves would
-  // be visually imperceptible bumps. This is a RENDER-ONLY multiplier;
-  // it's applied in ocean.js's update() and never touches the physics
-  // arrays in waveSolver.js, so measured wave heights stay physically
-  // meaningful even while the picture is exaggerated.
-  visFolder.open();
-
-  return gui;
+      dirSlider.value = state.faultDirection;
+      dirVal.textContent = state.faultDirection;
+      
+      updatePlayPauseUI();
+    }
+  };
 }

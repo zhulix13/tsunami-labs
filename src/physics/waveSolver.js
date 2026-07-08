@@ -134,26 +134,26 @@ export class WaveSolver {
    * @param {number} gj        epicenter grid y
    * @param {number} magnitude Mw, expected range 6.0 - 9.5
    */
-  triggerEarthquake(gi, gj, magnitude) {
-    // Empirical-ish scaling: real tsunami source heights for Mw 6-9.5
-    // roughly span tens of cm to several meters. This isn't a seismology
-    // model, just a monotonic curve that "feels" right across the range
-    // and is documented here so it's easy to retune.
-    // Bumped base amplitude and exponent (was 0.15 / 0.35) — the original
-    // curve was too conservative at the lower/mid end of the magnitude
-    // range and produced barely-visible sources. This still scales
-    // monotonically with Mw, just with more punch across the whole range.
-    const amplitude = 0.6 * Math.pow(10, (magnitude - 6.0) * 0.4); // meters
-    const radiusCells = 4 + (magnitude - 6.0) * 2.5; // grid cells
+  triggerEarthquake(gi, gj, magnitude, depth = 20, direction = 90) {
+    // Depth factor: 20km is baseline (1.0). Deeper = wider radius, lower amplitude.
+    const depthFactor = Math.max(0.2, 20 / depth);
+
+    // Base amplitude and radius
+    const amplitude = 0.6 * Math.pow(10, (magnitude - 6.0) * 0.4) * depthFactor;
+    const baseRadius = (4 + (magnitude - 6.0) * 2.5) * Math.sqrt(1 / depthFactor);
+
+    // A real fault is elongated. Let's make the major axis 3x the minor axis.
+    const sigmaMajor2 = (baseRadius * 3) * (baseRadius * 3);
+    const sigmaMinor2 = baseRadius * baseRadius;
+
+    // Fault direction in radians
+    const theta = direction * Math.PI / 180;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
 
     const n = this.gridSize;
-    const sigma2 = radiusCells * radiusCells;
+    const spread = Math.ceil(baseRadius * 3 * 3);
 
-    // Splat a Gaussian directly into hCur AND hPrev (both equal, zero
-    // initial velocity) so the source starts at rest, not already moving —
-    // that's what makes concentric rings radiate outward symmetrically
-    // rather than the sim producing an initial-velocity artifact.
-    const spread = Math.ceil(radiusCells * 3);
     for (let dj = -spread; dj <= spread; dj++) {
       const j = gj + dj;
       if (j < 0 || j >= n) continue;
@@ -162,10 +162,18 @@ export class WaveSolver {
         if (i < 0 || i >= n) continue;
         const idx = this.idx(i, j);
         if (this.depth[idx] <= 0) continue; // don't displace land cells
-        const r2 = di * di + dj * dj;
-        const bump = amplitude * Math.exp(-r2 / (2 * sigma2));
-        this.hCur[idx] += bump;
-        this.hPrev[idx] += bump;
+        
+        // Rotate local coordinates to align with fault direction
+        const dx = di * cosT - dj * sinT;
+        const dy = di * sinT + dj * cosT;
+
+        const exponent = (dx * dx) / (2 * sigmaMajor2) + (dy * dy) / (2 * sigmaMinor2);
+        const bump = amplitude * Math.exp(-exponent);
+        
+        if (bump > 0.001) {
+          this.hCur[idx] += bump;
+          this.hPrev[idx] += bump;
+        }
       }
     }
   }

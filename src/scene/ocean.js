@@ -198,19 +198,38 @@ const FRAGMENT_SHADER = /* glsl */ `
 
     } else {
       // --- WATER ---
-      float t        = clamp(abs(vHeight) / uWaveColorScale, 0.0, 1.0);
-      vec3 deep      = vec3(0.04, 0.20, 0.34);
-      vec3 mid       = vec3(0.10, 0.52, 0.60);
-      vec3 foamColor = vec3(0.92, 0.97, 0.99);
-      vec3 base      = mix(deep, mid, smoothstep(0.0, 0.55, t));
+      float h = vHeight;
+      vec3 cRed = vec3(1.0, 0.0, 0.0);      // +10
+      vec3 cOrange = vec3(1.0, 0.4, 0.0);   // +7.5
+      vec3 cYellow = vec3(1.0, 1.0, 0.0);   // +5.0
+      vec3 cGreen = vec3(0.0, 1.0, 0.0);    // +2.5
+      vec3 cCyan = vec3(0.0, 1.0, 1.0);     // 0.0
+      vec3 cMidBlue = vec3(0.0, 0.5, 1.0);  // -2.5
+      vec3 cBlue = vec3(0.0, 0.0, 1.0);     // -5.0
+      vec3 cIndigo = vec3(0.3, 0.0, 0.5);   // -7.5
+      vec3 cPurple = vec3(0.2, 0.0, 0.2);   // -10+
 
-      // Single FBM call — reused for wave-crest foam AND shoreline foam.
-      // (Previously: 3 separate FBM calls per water pixel.)
-      float foamNoise  = fbm(vWorldPos.xz * 0.01 + uTime * 0.05);
-      float foamFactor = smoothstep(0.5, 1.0, t + foamNoise * 0.3);
-      float shoreFoam  = smoothstep(5.0, 0.0, vStaticDepth) * smoothstep(0.3, 0.7, foamNoise);
-      foamFactor = max(foamFactor, shoreFoam);
-      base = mix(base, foamColor, foamFactor);
+      vec3 base;
+      if (h >= 10.0) base = cRed;
+      else if (h >= 7.5) base = mix(cOrange, cRed, (h - 7.5) / 2.5);
+      else if (h >= 5.0) base = mix(cYellow, cOrange, (h - 5.0) / 2.5);
+      else if (h >= 2.5) base = mix(cGreen, cYellow, (h - 2.5) / 2.5);
+      else if (h >= 0.0) base = mix(cCyan, cGreen, h / 2.5);
+      else if (h >= -2.5) base = mix(cMidBlue, cCyan, (h + 2.5) / 2.5);
+      else if (h >= -5.0) base = mix(cBlue, cMidBlue, (h + 5.0) / 2.5);
+      else if (h >= -7.5) base = mix(cIndigo, cBlue, (h + 7.5) / 2.5);
+      else if (h >= -10.0) base = mix(cPurple, cIndigo, (h + 10.0) / 2.5);
+      else base = cPurple;
+
+      vec3 foamColor = vec3(0.92, 0.97, 0.99);
+      float t = clamp(abs(h) / 5.0, 0.0, 1.0);
+      float foamNoise = fbm(vWorldPos.xz * 0.01 + uTime * 0.05);
+      float foamFactor = smoothstep(0.8, 1.0, t + foamNoise * 0.3); // Less foam on crests
+      float shoreFoam = smoothstep(5.0, 0.0, vStaticDepth) * smoothstep(0.3, 0.7, foamNoise);
+      if (h < 0.0) foamFactor = shoreFoam; // Troughs only have shore foam
+      else foamFactor = max(foamFactor, shoreFoam);
+
+      base = mix(base, foamColor, foamFactor * 0.8);
 
       // Wave normals computed in vertex shader via height texture central
       // differences — more accurate than FBM perturbation and much cheaper.
